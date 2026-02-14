@@ -6,6 +6,7 @@ import com.spring.tradextransactservice.Enums.TradeType;
 import com.spring.tradextransactservice.Models.Account;
 import com.spring.tradextransactservice.Models.Trade;
 import com.spring.tradextransactservice.Repository.AccountRepository;
+import com.spring.tradextransactservice.Repository.TradeRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,11 +19,7 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class TransactService {
 
-    private final UserRepository userRepository;
-    private final PortfolioRepository portfolioRepository;
-    private final StockRepository stockRepository;
     private final TradeRepository tradeRepository;
-    private final MarketHoursValidator marketHoursValidator;
     private final AccountRepository accountRepository;
 
     @Transactional
