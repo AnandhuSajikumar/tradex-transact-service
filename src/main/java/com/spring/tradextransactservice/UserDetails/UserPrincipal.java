@@ -1,4 +1,4 @@
-package com.spring.tradextransactservice.DTO;
+package com.spring.tradextransactservice.UserDetails;
 
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;

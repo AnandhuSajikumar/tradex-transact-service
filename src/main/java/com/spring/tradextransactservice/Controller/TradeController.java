@@ -2,7 +2,7 @@ package com.spring.tradextransactservice.Controller;
 
 import com.spring.tradextransactservice.DTO.TradeRequest;
 import com.spring.tradextransactservice.DTO.TradeResponse;
-import com.spring.tradextransactservice.DTO.UserPrincipal;
+import com.spring.tradextransactservice.UserDetails.UserPrincipal;
 import com.spring.tradextransactservice.Service.TransactService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
