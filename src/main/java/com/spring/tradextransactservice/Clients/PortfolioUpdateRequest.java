@@ -1,4 +1,4 @@
-package com.spring.tradextransactservice.DTO;
+package com.spring.tradextransactservice.Clients;
 
 
 import lombok.Getter;

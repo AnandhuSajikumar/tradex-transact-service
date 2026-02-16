@@ -1,6 +1,5 @@
 package com.spring.tradextransactservice.Clients;
 
-import com.spring.tradextransactservice.DTO.PortfolioUpdateRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
