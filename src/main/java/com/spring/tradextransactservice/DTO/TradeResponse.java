@@ -10,7 +10,7 @@ public class TradeResponse {
 
     private final Long tradeId;
     private final TradeType type;
-    private final String symbol;
+    private final Long stockId;
     private final int quantity;
     private final BigDecimal priceExecuted;
     private final BigDecimal totalValue;
@@ -20,7 +20,7 @@ public class TradeResponse {
     public TradeResponse(
             Long tradeId,
             TradeType type,
-            String symbol,
+            Long stockId,
             int quantity,
             BigDecimal priceExecuted,
             BigDecimal totalValue,
@@ -29,7 +29,7 @@ public class TradeResponse {
     ) {
         this.tradeId = tradeId;
         this.type = type;
-        this.symbol = symbol;
+        this.stockId = stockId;
         this.quantity = quantity;
         this.priceExecuted = priceExecuted;
         this.totalValue = totalValue;

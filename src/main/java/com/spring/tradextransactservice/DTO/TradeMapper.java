@@ -1,5 +1,6 @@
 package com.spring.tradextransactservice.DTO;
 
+import com.spring.tradextransactservice.Models.Trade;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -19,7 +20,7 @@ public final class TradeMapper {
         return new TradeResponse(
                 trade.getId(),
                 trade.getTradeType(),
-                trade.getStock().getSymbol(),
+                trade.getStockId(),
                 trade.getQuantity(),
                 trade.getPriceExecuted(),
                 totalValue,
