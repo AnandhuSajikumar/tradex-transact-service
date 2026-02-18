@@ -50,6 +50,4 @@ public class TradeController {
         return transactService.getTradeHistory(userPrincipal.getId(), pageable);
     }
 
-
-
 }
