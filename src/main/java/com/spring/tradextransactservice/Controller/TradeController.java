@@ -30,7 +30,20 @@ public class TradeController {
     ){
         return transactService.buyStock(
                 userPrincipal.getId(),
-                request.getStockSymbol(),
+                request.getStockId(),
+                request.getQuantity()
+        );
+    }
+
+    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/sell")
+    public TradeResponse sell(
+            @RequestBody TradeRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        return transactService.sellStock(
+                userPrincipal.getId(),
+                request.getStockId(),
                 request.getQuantity()
         );
     }

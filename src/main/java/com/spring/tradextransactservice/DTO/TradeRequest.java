@@ -7,11 +7,11 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class TradeRequest {
-    private String stockSymbol;
+    private Long stockId;
     private Integer quantity;
 
-    public TradeRequest(String stockSymbol, Integer quantity) {
-        this.stockSymbol = stockSymbol;
+    public TradeRequest(Long stockId, Integer quantity) {
+        this.stockId = stockId;
         this.quantity = quantity;
     }
 }
