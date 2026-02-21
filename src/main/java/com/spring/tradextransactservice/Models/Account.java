@@ -22,6 +22,10 @@ public class Account {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance;
 
+    public Account(Long userId, BigDecimal balance) {
+        this.userId = userId;
+        this.balance = balance;
+    }
 
     public void debitWallet(BigDecimal amount){
         if(amount.compareTo(BigDecimal.ZERO) <= 0){
