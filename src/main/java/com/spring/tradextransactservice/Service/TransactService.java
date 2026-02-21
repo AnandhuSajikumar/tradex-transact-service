@@ -1,5 +1,7 @@
 package com.spring.tradextransactservice.Service;
 
+import com.spring.tradextransactservice.Clients.MarketClient;
+import com.spring.tradextransactservice.Clients.PortfolioClient;
 import com.spring.tradextransactservice.DTO.TradeMapper;
 import com.spring.tradextransactservice.DTO.TradeResponse;
 import com.spring.tradextransactservice.Enums.TradeType;
@@ -21,69 +23,65 @@ public class TransactService {
 
     private final TradeRepository tradeRepository;
     private final AccountRepository accountRepository;
+    private final MarketClient marketClient;
+    private final PortfolioClient portfolioClient;
 
     @Transactional
-    public TradeResponse buyStock(Long userId, String stockSymbol, Integer quantity){
+    public TradeResponse buyStock(Long userId, Long stockId, Integer quantity) {
 
-        marketHoursValidator.validateMarketHours();
+        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
 
-        if(quantity <= 0 ) throw new IllegalArgumentException("Quantity must be positive");
+        Account account = accountRepository.findByUserIdWithLock(userId)
+                .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-        User user =  userRepository.findByIdWithLock(userId).
-                orElseThrow(() -> new IllegalStateException("User not found"));
-        Stock stock = stockRepository.findBySymbol(stockSymbol)
-                .orElseThrow(() -> new IllegalStateException("Stock not found"));
+        BigDecimal executionPrice = marketClient.getPrice(stockId);
 
-        BigDecimal executionPrice = stock.getCurrentPrice();
         BigDecimal totalCost = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
-        user.debitWallet(totalCost);
+        account.debitWallet(totalCost);
 
-        Portfolio portfolio = portfolioRepository
-                .findByUserIdAndStockIdWithLock(userId, stock.getId())
-                .orElse(Portfolio.createEmptyPortfolio(user, stock));
-
-        portfolio.addHoldings(quantity, executionPrice);
+        portfolioClient.updateBuy(userId, stockId, quantity, executionPrice);
 
         Trade trade = Trade.create(
-                user,stock,TradeType.BUY,
-                quantity,executionPrice
+                userId,
+                stockId,
+                TradeType.BUY,
+                quantity,
+                executionPrice
         );
 
         tradeRepository.save(trade);
-        return TradeMapper.toResponse(trade, user.getWalletBalance());
 
+        return TradeMapper.toResponse(trade, account.getBalance());
     }
 
     @Transactional
-    public TradeResponse sellStock(Long userId, String stockSymbol, Integer quantity){
-        if(quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
+    public TradeResponse sellStock(Long userId, Long stockId, Integer quantity) {
+
+        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
 
         Account account = accountRepository.findByUserIdWithLock(userId)
-                .orElseThrow(() -> new IllegalStateException("User not found"));
+                .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-        Stock stock  = stockRepository.findBySymbol(stockSymbol)
-                .orElseThrow(() -> new IllegalStateException("Stock not found"));
+        BigDecimal executionPrice = marketClient.getPrice(stockId);
 
-        BigDecimal executionPrice = stock.getCurrentPrice();
-
-        Portfolio portfolio = portfolioRepository
-                .findByUserIdAndStockIdWithLock(userId, stock.getId())
-                .orElseThrow(() -> new IllegalStateException("You do not own this portfolio"));
-
-        portfolio.removeHoldings(quantity);
+        portfolioClient.updateSell(userId, stockId, quantity);
 
         BigDecimal totalValue = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
         account.creditWallet(totalValue);
 
         Trade trade = Trade.create(
-                account.getUserId(), stock, TradeType.SELL,
-                quantity, executionPrice
+                userId,
+                stockId,
+                TradeType.SELL,
+                quantity,
+                executionPrice
         );
-        tradeRepository.save(trade);
-        return TradeMapper.toResponse(trade, user.getWalletBalance());
 
+        tradeRepository.save(trade);
+
+        return TradeMapper.toResponse(trade, account.getBalance());
     }
 
     public Page<TradeResponse> getAllTrade(Pageable pageable){
