@@ -142,8 +142,7 @@ public class TransactService {
                 } catch (Exception e) {
                         idempotencyService.markFailed(idempotencyKeyStr);
                         if (portfolioUpdated) {
-                                // Mini-Saga Compensation
-                                // For sell rollback, we don't strictly need price, so we just call rollbackSell
+
                                 try {
                                         log.warn("Saga Compensation: Rolling back sell operation for User: {}, Stock: {}",
                                                         userId, stockId);
@@ -154,6 +153,7 @@ public class TransactService {
                                 }
                         }
                         throw e;
+
                 }
         }
 
