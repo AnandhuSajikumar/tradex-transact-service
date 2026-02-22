@@ -13,7 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
 @Getter
 @RequiredArgsConstructor
@@ -21,31 +20,30 @@ import org.springframework.web.bind.annotation.*;
 public class TradeController {
     private final TransactService transactService;
 
-
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/buy")
     public TradeResponse buy(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody TradeRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ){
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return transactService.buyStock(
+                idempotencyKey,
                 userPrincipal.getId(),
                 request.getStockId(),
-                request.getQuantity()
-        );
+                request.getQuantity());
     }
 
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/sell")
     public TradeResponse sell(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody TradeRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return transactService.sellStock(
+                idempotencyKey,
                 userPrincipal.getId(),
                 request.getStockId(),
-                request.getQuantity()
-        );
+                request.getQuantity());
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -58,8 +56,7 @@ public class TradeController {
     @GetMapping("/orders")
     public Page<TradeResponse> tradeHistoryById(
             @PageableDefault(size = 5) Pageable pageable,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ){
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
         return transactService.getTradeHistory(userPrincipal.getId(), pageable);
     }
 

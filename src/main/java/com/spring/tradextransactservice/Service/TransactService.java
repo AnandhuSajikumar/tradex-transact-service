@@ -17,82 +17,123 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spring.tradextransactservice.Enums.IdempotencyStatus;
+import com.spring.tradextransactservice.Models.IdempotencyKey;
+import com.spring.tradextransactservice.Service.IdempotencyService;
+
 @Service
 @RequiredArgsConstructor
 public class TransactService {
 
-    private final TradeRepository tradeRepository;
-    private final AccountRepository accountRepository;
-    private final MarketClient marketClient;
-    private final PortfolioClient portfolioClient;
+        private final TradeRepository tradeRepository;
+        private final AccountRepository accountRepository;
+        private final MarketClient marketClient;
+        private final PortfolioClient portfolioClient;
+        private final IdempotencyService idempotencyService;
+        private final ObjectMapper objectMapper;
 
-    @Transactional
-    public TradeResponse buyStock(Long userId, Long stockId, Integer quantity) {
+        @Transactional
+        public TradeResponse buyStock(String idempotencyKeyStr, Long userId, Long stockId, Integer quantity) {
 
-        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
+                IdempotencyKey key = idempotencyService.createOrReturnKey(idempotencyKeyStr, userId);
+                if (key != null && key.getStatus() == IdempotencyStatus.COMPLETED) {
+                        try {
+                                return objectMapper.readValue(key.getResponseBody(), TradeResponse.class);
+                        } catch (JsonProcessingException e) {
+                                throw new IllegalStateException("Failed to parse cached response");
+                        }
+                }
 
-        Account account = accountRepository.findByUserIdWithLock(userId)
-                .orElseThrow(() -> new IllegalStateException("Account not found"));
+                try {
+                        if (quantity <= 0)
+                                throw new IllegalArgumentException("Quantity must be positive");
 
-        BigDecimal executionPrice = marketClient.getPrice(stockId);
+                        Account account = accountRepository.findByUserIdWithLock(userId)
+                                        .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-        BigDecimal totalCost = executionPrice.multiply(BigDecimal.valueOf(quantity));
+                        BigDecimal executionPrice = marketClient.getPrice(stockId);
 
-        account.debitWallet(totalCost);
+                        BigDecimal totalCost = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
-        portfolioClient.updateBuy(userId, stockId, quantity, executionPrice);
+                        account.debitWallet(totalCost);
 
-        Trade trade = Trade.create(
-                userId,
-                stockId,
-                TradeType.BUY,
-                quantity,
-                executionPrice
-        );
+                        portfolioClient.updateBuy(idempotencyKeyStr, userId, stockId, quantity, executionPrice);
 
-        tradeRepository.save(trade);
+                        Trade trade = Trade.create(
+                                        userId,
+                                        stockId,
+                                        TradeType.BUY,
+                                        quantity,
+                                        executionPrice);
 
-        return TradeMapper.toResponse(trade, account.getBalance());
-    }
+                        tradeRepository.save(trade);
+                        TradeResponse response = TradeMapper.toResponse(trade, account.getBalance());
 
-    @Transactional
-    public TradeResponse sellStock(Long userId, Long stockId, Integer quantity) {
+                        idempotencyService.markCompleted(idempotencyKeyStr, response);
+                        return response;
 
-        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
+                } catch (Exception e) {
+                        idempotencyService.markFailed(idempotencyKeyStr);
+                        throw e;
+                }
+        }
 
-        Account account = accountRepository.findByUserIdWithLock(userId)
-                .orElseThrow(() -> new IllegalStateException("Account not found"));
+        @Transactional
+        public TradeResponse sellStock(String idempotencyKeyStr, Long userId, Long stockId, Integer quantity) {
 
-        BigDecimal executionPrice = marketClient.getPrice(stockId);
+                IdempotencyKey key = idempotencyService.createOrReturnKey(idempotencyKeyStr, userId);
+                if (key != null && key.getStatus() == IdempotencyStatus.COMPLETED) {
+                        try {
+                                return objectMapper.readValue(key.getResponseBody(), TradeResponse.class);
+                        } catch (JsonProcessingException e) {
+                                throw new IllegalStateException("Failed to parse cached response");
+                        }
+                }
 
-        portfolioClient.updateSell(userId, stockId, quantity);
+                try {
+                        if (quantity <= 0)
+                                throw new IllegalArgumentException("Quantity must be positive");
 
-        BigDecimal totalValue = executionPrice.multiply(BigDecimal.valueOf(quantity));
+                        Account account = accountRepository.findByUserIdWithLock(userId)
+                                        .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-        account.creditWallet(totalValue);
+                        BigDecimal executionPrice = marketClient.getPrice(stockId);
 
-        Trade trade = Trade.create(
-                userId,
-                stockId,
-                TradeType.SELL,
-                quantity,
-                executionPrice
-        );
+                        portfolioClient.updateSell(idempotencyKeyStr, userId, stockId, quantity);
 
-        tradeRepository.save(trade);
+                        BigDecimal totalValue = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
-        return TradeMapper.toResponse(trade, account.getBalance());
-    }
+                        account.creditWallet(totalValue);
 
-    public Page<TradeResponse> getAllTrade(Pageable pageable){
-        return tradeRepository.findAll(pageable)
-                .map(trade -> TradeMapper.toResponse(trade, null));
-    }
+                        Trade trade = Trade.create(
+                                        userId,
+                                        stockId,
+                                        TradeType.SELL,
+                                        quantity,
+                                        executionPrice);
 
-    @Transactional
-    public Page<TradeResponse> getTradeHistory (Long userId, Pageable pageable){
-        return tradeRepository.findByUserIdOrderByExecutedAtDesc(userId, pageable)
-                .map(trade -> TradeMapper.toResponse(trade, null));
-    }
+                        tradeRepository.save(trade);
+                        TradeResponse response = TradeMapper.toResponse(trade, account.getBalance());
+
+                        idempotencyService.markCompleted(idempotencyKeyStr, response);
+                        return response;
+
+                } catch (Exception e) {
+                        idempotencyService.markFailed(idempotencyKeyStr);
+                        throw e;
+                }
+        }
+
+        public Page<TradeResponse> getAllTrade(Pageable pageable) {
+                return tradeRepository.findAll(pageable)
+                                .map(trade -> TradeMapper.toResponse(trade, null));
+        }
+
+        @Transactional
+        public Page<TradeResponse> getTradeHistory(Long userId, Pageable pageable) {
+                return tradeRepository.findByUserIdOrderByExecutedAtDesc(userId, pageable)
+                                .map(trade -> TradeMapper.toResponse(trade, null));
+        }
 }
-
