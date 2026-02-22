@@ -73,4 +73,38 @@ public class PortfolioClient {
                 t.getMessage());
         throw new PortfolioUnavailableException("Portfolio Service is currently unavailable. Please try again later.");
     }
+
+    public void rollbackBuy(String idempotencyKey, Long userId, Long stockId, Integer quantity, BigDecimal price) {
+        try {
+            webClient.post()
+                    .uri("http://localhost:8083/portfolio/rollback-buy")
+                    .header("Idempotency-Key", idempotencyKey)
+                    .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, price))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            log.info("Successfully rolled back buy operation for User: {}, Stock: {}", userId, stockId);
+        } catch (Exception e) {
+            log.error(
+                    "Failed to rollback buy operation for User: {}, Stock: {}. Manual intervention may be required. Reason: {}",
+                    userId, stockId, e.getMessage());
+        }
+    }
+
+    public void rollbackSell(String idempotencyKey, Long userId, Long stockId, Integer quantity) {
+        try {
+            webClient.post()
+                    .uri("http://localhost:8083/portfolio/rollback-sell")
+                    .header("Idempotency-Key", idempotencyKey)
+                    .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, null))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            log.info("Successfully rolled back sell operation for User: {}, Stock: {}", userId, stockId);
+        } catch (Exception e) {
+            log.error(
+                    "Failed to rollback sell operation for User: {}, Stock: {}. Manual intervention may be required. Reason: {}",
+                    userId, stockId, e.getMessage());
+        }
+    }
 }

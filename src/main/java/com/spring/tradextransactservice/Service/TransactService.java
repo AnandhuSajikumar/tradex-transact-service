@@ -23,8 +23,11 @@ import com.spring.tradextransactservice.Enums.IdempotencyStatus;
 import com.spring.tradextransactservice.Models.IdempotencyKey;
 import com.spring.tradextransactservice.Service.IdempotencyService;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TransactService {
 
         private final TradeRepository tradeRepository;
@@ -46,6 +49,8 @@ public class TransactService {
                         }
                 }
 
+                boolean portfolioUpdated = false;
+                BigDecimal executionPrice = null;
                 try {
                         if (quantity <= 0)
                                 throw new IllegalArgumentException("Quantity must be positive");
@@ -53,13 +58,14 @@ public class TransactService {
                         Account account = accountRepository.findByUserIdWithLock(userId)
                                         .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-                        BigDecimal executionPrice = marketClient.getPrice(stockId);
+                        executionPrice = marketClient.getPrice(stockId);
 
                         BigDecimal totalCost = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
                         account.debitWallet(totalCost);
 
                         portfolioClient.updateBuy(idempotencyKeyStr, userId, stockId, quantity, executionPrice);
+                        portfolioUpdated = true;
 
                         Trade trade = Trade.create(
                                         userId,
@@ -76,6 +82,17 @@ public class TransactService {
 
                 } catch (Exception e) {
                         idempotencyService.markFailed(idempotencyKeyStr);
+                        if (portfolioUpdated && executionPrice != null) {
+                                try {
+                                        log.warn("Saga Compensation: Rolling back buy operation for User: {}, Stock: {}",
+                                                        userId, stockId);
+                                        portfolioClient.rollbackBuy(idempotencyKeyStr, userId, stockId, quantity,
+                                                        executionPrice);
+                                } catch (Exception rollbackException) {
+                                        log.error("CRITICAL: Saga compensation failed for buy operation. User: {}, Stock: {}. Error: {}",
+                                                        userId, stockId, rollbackException.getMessage());
+                                }
+                        }
                         throw e;
                 }
         }
@@ -92,6 +109,7 @@ public class TransactService {
                         }
                 }
 
+                boolean portfolioUpdated = false;
                 try {
                         if (quantity <= 0)
                                 throw new IllegalArgumentException("Quantity must be positive");
@@ -102,6 +120,7 @@ public class TransactService {
                         BigDecimal executionPrice = marketClient.getPrice(stockId);
 
                         portfolioClient.updateSell(idempotencyKeyStr, userId, stockId, quantity);
+                        portfolioUpdated = true;
 
                         BigDecimal totalValue = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
@@ -122,6 +141,18 @@ public class TransactService {
 
                 } catch (Exception e) {
                         idempotencyService.markFailed(idempotencyKeyStr);
+                        if (portfolioUpdated) {
+                                // Mini-Saga Compensation
+                                // For sell rollback, we don't strictly need price, so we just call rollbackSell
+                                try {
+                                        log.warn("Saga Compensation: Rolling back sell operation for User: {}, Stock: {}",
+                                                        userId, stockId);
+                                        portfolioClient.rollbackSell(idempotencyKeyStr, userId, stockId, quantity);
+                                } catch (Exception rollbackException) {
+                                        log.error("CRITICAL: Saga compensation failed for sell operation. User: {}, Stock: {}. Error: {}",
+                                                        userId, stockId, rollbackException.getMessage());
+                                }
+                        }
                         throw e;
                 }
         }
