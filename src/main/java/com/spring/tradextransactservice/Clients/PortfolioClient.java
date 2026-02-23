@@ -26,7 +26,7 @@ public class PortfolioClient {
             BigDecimal price) {
         return CompletableFuture.supplyAsync(() -> {
             webClient.post()
-                    .uri("http://localhost:8083/portfolio/buy")
+                    .uri("http://tradex-portfolio-service/portfolio/buy")
                     .header("Idempotency-Key", idempotencyKey)
                     .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, price))
                     .retrieve()
@@ -46,7 +46,7 @@ public class PortfolioClient {
     public CompletableFuture<Void> updateSellAsync(String idempotencyKey, Long userId, Long stockId, Integer quantity) {
         return CompletableFuture.supplyAsync(() -> {
             webClient.post()
-                    .uri("http://localhost:8083/portfolio/sell")
+                    .uri("http://tradex-portfolio-service/portfolio/sell")
                     .header("Idempotency-Key", idempotencyKey)
                     .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, null))
                     .retrieve()
@@ -77,7 +77,7 @@ public class PortfolioClient {
     public void rollbackBuy(String idempotencyKey, Long userId, Long stockId, Integer quantity, BigDecimal price) {
         try {
             webClient.post()
-                    .uri("http://localhost:8083/portfolio/rollback-buy")
+                    .uri("http://tradex-portfolio-service/portfolio/rollback-buy")
                     .header("Idempotency-Key", idempotencyKey)
                     .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, price))
                     .retrieve()
@@ -94,7 +94,7 @@ public class PortfolioClient {
     public void rollbackSell(String idempotencyKey, Long userId, Long stockId, Integer quantity) {
         try {
             webClient.post()
-                    .uri("http://localhost:8083/portfolio/rollback-sell")
+                    .uri("http://tradex-portfolio-service/portfolio/rollback-sell")
                     .header("Idempotency-Key", idempotencyKey)
                     .bodyValue(new PortfolioUpdateRequest(userId, stockId, quantity, null))
                     .retrieve()

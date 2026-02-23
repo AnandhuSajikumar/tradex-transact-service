@@ -25,7 +25,7 @@ public class MarketClient {
     @TimeLimiter(name = "marketClient")
     public CompletableFuture<BigDecimal> getPriceAsync(Long stockId) {
         return CompletableFuture.supplyAsync(() -> webClient.get()
-                .uri("http://localhost:8084/v1/api/market/{symbol}", stockId)
+                .uri("http://tradex-market-service/v1/api/market/{symbol}", stockId)
                 .retrieve()
                 .bodyToMono(PriceResponse.class)
                 .map(PriceResponse::getPrice)
