@@ -8,44 +8,43 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/v1/auth/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html")
-                        .permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("Admin")
-                        .anyRequest().hasRole("USER")
-                )
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                )
-//                .exceptionHandling(ex -> ex
-//                        .authenticationEntryPoint((req, res, e) ->
-//                                res.sendError(HttpServletResponse.SC_UNAUTHORIZED)
-//                        )
-//                )
-                .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable());
+        @Bean
+        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                http
+                                .csrf(csrf -> csrf.disable())
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers(
+                                                                "/api/v1/auth/**",
+                                                                "/v3/api-docs/**",
+                                                                "/swagger-ui/**",
+                                                                "/swagger-ui.html")
+                                                .permitAll()
+                                                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                                                .anyRequest().hasRole("USER"))
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class)
+                                // .exceptionHandling(ex -> ex
+                                // .authenticationEntryPoint((req, res, e) ->
+                                // res.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+                                // )
+                                // )
+                                .formLogin(form -> form.disable())
+                                .httpBasic(basic -> basic.disable());
 
-        return http.build();
-    }
+                return http.build();
+        }
 }
