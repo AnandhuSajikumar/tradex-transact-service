@@ -1,10 +1,13 @@
 package com.spring.tradextransactservice.Service;
 
-import com.spring.tradextransactservice.Clients.MarketClient;
-import com.spring.tradextransactservice.Clients.PortfolioClient;
+import com.spring.tradextransactservice.kafka.MarketPriceListener;
+
 import com.spring.tradextransactservice.DTO.TradeMapper;
 import com.spring.tradextransactservice.DTO.TradeResponse;
 import com.spring.tradextransactservice.Enums.TradeType;
+import com.spring.tradextransactservice.Enums.TradeStatus;
+import com.spring.tradextransactservice.kafka.TradeEvent;
+import org.springframework.kafka.core.KafkaTemplate;
 import com.spring.tradextransactservice.Models.Account;
 import com.spring.tradextransactservice.Models.Trade;
 import com.spring.tradextransactservice.Repository.AccountRepository;
@@ -32,8 +35,9 @@ public class TransactService {
 
         private final TradeRepository tradeRepository;
         private final AccountRepository accountRepository;
-        private final MarketClient marketClient;
-        private final PortfolioClient portfolioClient;
+
+        private final MarketPriceListener marketPriceListener;
+        private final KafkaTemplate<String, TradeEvent> kafkaTemplate;
         private final IdempotencyService idempotencyService;
         private final ObjectMapper objectMapper;
 
@@ -58,14 +62,15 @@ public class TransactService {
                         Account account = accountRepository.findByUserIdWithLock(userId)
                                         .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-                        executionPrice = marketClient.getPrice(stockId);
+                        executionPrice = marketPriceListener.getLatestPrice(stockId);
+                        if (executionPrice == null) {
+                                throw new IllegalStateException(
+                                                "Market price not available for stockId " + stockId + ". Please try again.");
+                        }
 
                         BigDecimal totalCost = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
                         account.debitWallet(totalCost);
-
-                        portfolioClient.updateBuy(idempotencyKeyStr, userId, stockId, quantity, executionPrice);
-                        portfolioUpdated = true;
 
                         Trade trade = Trade.create(
                                         userId,
@@ -73,26 +78,32 @@ public class TransactService {
                                         TradeType.BUY,
                                         quantity,
                                         executionPrice);
-
+                        trade.setStatus(TradeStatus.PENDING);
                         tradeRepository.save(trade);
+
+                        TradeEvent event = new TradeEvent(
+                                        idempotencyKeyStr,
+                                        trade.getId(),
+                                        userId,
+                                        stockId,
+                                        quantity,
+                                        TradeType.BUY,
+                                        executionPrice);
+
+                        kafkaTemplate.send("trade-requests-topic", idempotencyKeyStr, event);
+
                         TradeResponse response = TradeMapper.toResponse(trade, account.getBalance());
 
-                        idempotencyService.markCompleted(idempotencyKeyStr, response);
+                        // Do not mark idempotency as completed yet! It's still pending.
+                        // idempotencyService.markCompleted(idempotencyKeyStr, response);
+
                         return response;
 
                 } catch (Exception e) {
                         idempotencyService.markFailed(idempotencyKeyStr);
-                        if (portfolioUpdated && executionPrice != null) {
-                                try {
-                                        log.warn("Saga Compensation: Rolling back buy operation for User: {}, Stock: {}",
-                                                        userId, stockId);
-                                        portfolioClient.rollbackBuy(idempotencyKeyStr, userId, stockId, quantity,
-                                                        executionPrice);
-                                } catch (Exception rollbackException) {
-                                        log.error("CRITICAL: Saga compensation failed for buy operation. User: {}, Stock: {}. Error: {}",
-                                                        userId, stockId, rollbackException.getMessage());
-                                }
-                        }
+                        // Local transaction rolls back wallet and trade DB save automatically.
+                        // No need for explicit saga compensation here anymore because Portfolio wasn't
+                        // called yet
                         throw e;
                 }
         }
@@ -117,10 +128,11 @@ public class TransactService {
                         Account account = accountRepository.findByUserIdWithLock(userId)
                                         .orElseThrow(() -> new IllegalStateException("Account not found"));
 
-                        BigDecimal executionPrice = marketClient.getPrice(stockId);
-
-                        portfolioClient.updateSell(idempotencyKeyStr, userId, stockId, quantity);
-                        portfolioUpdated = true;
+                        BigDecimal executionPrice = marketPriceListener.getLatestPrice(stockId);
+                        if (executionPrice == null) {
+                                throw new IllegalStateException(
+                                                "Market price not available for stockId " + stockId + ". Please try again.");
+                        }
 
                         BigDecimal totalValue = executionPrice.multiply(BigDecimal.valueOf(quantity));
 
@@ -132,26 +144,26 @@ public class TransactService {
                                         TradeType.SELL,
                                         quantity,
                                         executionPrice);
-
+                        trade.setStatus(TradeStatus.PENDING);
                         tradeRepository.save(trade);
+
+                        TradeEvent event = new TradeEvent(
+                                        idempotencyKeyStr,
+                                        trade.getId(),
+                                        userId,
+                                        stockId,
+                                        quantity,
+                                        TradeType.SELL,
+                                        executionPrice);
+
+                        kafkaTemplate.send("trade-requests-topic", idempotencyKeyStr, event);
+
                         TradeResponse response = TradeMapper.toResponse(trade, account.getBalance());
 
-                        idempotencyService.markCompleted(idempotencyKeyStr, response);
                         return response;
 
                 } catch (Exception e) {
                         idempotencyService.markFailed(idempotencyKeyStr);
-                        if (portfolioUpdated) {
-
-                                try {
-                                        log.warn("Saga Compensation: Rolling back sell operation for User: {}, Stock: {}",
-                                                        userId, stockId);
-                                        portfolioClient.rollbackSell(idempotencyKeyStr, userId, stockId, quantity);
-                                } catch (Exception rollbackException) {
-                                        log.error("CRITICAL: Saga compensation failed for sell operation. User: {}, Stock: {}. Error: {}",
-                                                        userId, stockId, rollbackException.getMessage());
-                                }
-                        }
                         throw e;
 
                 }

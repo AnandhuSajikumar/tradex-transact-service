@@ -1,9 +1,11 @@
 package com.spring.tradextransactservice.Models;
 
 import com.spring.tradextransactservice.Enums.TradeType;
+import com.spring.tradextransactservice.Enums.TradeStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,13 +13,10 @@ import java.time.Instant;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-@Table(
-        name = "trades",
-        indexes = {
-                @Index(name = "idx_trade_user_time", columnList = "user_id, executedAt"),
-                @Index(name = "idx_trade_stock_time", columnList = "stock_id, executedAt")
-        }
-)
+@Table(name = "trades", indexes = {
+        @Index(name = "idx_trade_user_time", columnList = "user_id, executedAt"),
+        @Index(name = "idx_trade_stock_time", columnList = "stock_id, executedAt")
+})
 public class Trade {
 
     @Id
@@ -42,9 +41,13 @@ public class Trade {
     @Column(nullable = false)
     private Instant executedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Setter
+    private TradeStatus status;
+
     private Trade(Long userId, Long stockId,
-                  TradeType tradeType,
-                  int quantity, BigDecimal priceExecuted) {
+            TradeType tradeType,
+            int quantity, BigDecimal priceExecuted) {
 
         this.userId = userId;
         this.stockId = stockId;
@@ -59,13 +62,12 @@ public class Trade {
             Long stockId,
             TradeType tradeType,
             int quantity,
-            BigDecimal executionPrice
-    ){
-        if(quantity <= 0){
+            BigDecimal executionPrice) {
+        if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
 
-        if(executionPrice.compareTo(BigDecimal.ZERO) <= 0){
+        if (executionPrice.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Execution price should be zero");
         }
         return new Trade(userId, stockId, tradeType, quantity, executionPrice);
